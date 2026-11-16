@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Benteng Kalisusu — Tactical FPS</title>
+<style>
+  :root {
+    --ink: #f5e9d3;
+    --muted: #c9b18c;
+    --accent: #ff8c2e;
+    --accent2: #e4572e;
+    --panel: rgba(24, 16, 10, 0.88);
+    --line: rgba(245, 233, 211, 0.25);
+    --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-readout: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a120a; color: var(--ink); font-family: var(--font-ui); }
+  #game, #game canvas { position: fixed; inset: 0; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hud[hidden] { display: none; }
+
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 24px; height: 24px; transform: translate(-50%, -50%); }
+  #crosshair i { position: absolute; background: var(--ink); opacity: .9; box-shadow: 0 0 2px #000; }
+  #crosshair i:nth-child(1) { left: 11px; top: 0; width: 2px; height: 8px; }
+  #crosshair i:nth-child(2) { left: 11px; bottom: 0; width: 2px; height: 8px; }
+  #crosshair i:nth-child(3) { top: 11px; left: 0; height: 2px; width: 8px; }
+  #crosshair i:nth-child(4) { top: 11px; right: 0; height: 2px; width: 8px; }
+  #crosshair .dot { position: absolute; left: 11px; top: 11px; width: 2px; height: 2px; background: var(--ink); }
+
+  #hitmarker { position: fixed; left: 50%; top: 50%; width: 28px; height: 28px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0; }
+  #hitmarker.on { opacity: 1; }
+  #hitmarker.kill i { background: #ff3b30; }
+  #hitmarker i { position: absolute; background: var(--ink); }
+  #hitmarker i:nth-child(1) { left: 13px; top: 0; width: 2px; height: 9px; }
+  #hitmarker i:nth-child(2) { left: 13px; bottom: 0; width: 2px; height: 9px; }
+  #hitmarker i:nth-child(3) { top: 13px; left: 0; height: 2px; width: 9px; }
+  #hitmarker i:nth-child(4) { top: 13px; right: 0; height: 2px; width: 9px; }
+
+  #health { position: fixed; left: 28px; bottom: 26px; width: 220px; }
+  #health .label { font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+  #health .num { font-family: var(--font-readout); font-size: 34px; line-height: 1; }
+  #health .bar { height: 8px; margin-top: 6px; background: rgba(0,0,0,.55); border: 1px solid var(--line); }
+  #health .bar i { display: block; height: 100%; background: #7ec850; }
+  #health.low .bar i { background: #ff3b30; }
+  #health.low .num { color: #ff6b5e; }
+
+  #ammo { position: fixed; right: 32px; bottom: 22px; text-align: right; font-family: var(--font-readout); }
+  #ammo-mag { font-size: 54px; line-height: 1; letter-spacing: -.03em; }
+  #ammo-reserve { font-size: 16px; color: var(--muted); }
+  #ammo.empty #ammo-mag { color: var(--accent2); }
+  #weapon-name { font-family: var(--font-ui); font-size: 13px; letter-spacing: .12em; color: var(--muted); margin-top: 4px; }
+
+  #topbar { position: fixed; top: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 10px 18px 12px; background: var(--panel); border: 1px solid var(--line); border-top: none; border-radius: 0 0 8px 8px; font-family: var(--font-readout); }
+  #timer { font-size: 22px; }
+  #timer.low { color: #ff6b5e; }
+  #score-line { font-size: 16px; }
+  #score-line b { color: var(--accent); }
+  #round-label { font-size: 12px; color: var(--muted); letter-spacing: .1em; }
+
+  #money { position: fixed; left: 28px; top: 22px; font-family: var(--font-readout); font-size: 18px; color: #ffd97a; text-shadow: 0 1px 2px #000; }
+  #kills { position: fixed; left: 28px; top: 48px; font-family: var(--font-readout); font-size: 13px; color: var(--muted); text-shadow: 0 1px 2px #000; }
+  #bomb-status { position: fixed; right: 32px; top: 22px; font-family: var(--font-readout); font-size: 14px; text-align: right; color: var(--muted); text-shadow: 0 1px 2px #000; }
+  #bomb-status.planted { color: #ff6b5e; }
+  #bomb-status .big { font-size: 20px; }
+
+  #plant-bar { position: fixed; left: 50%; bottom: 22%; width: 280px; transform: translateX(-50%); text-align: center; display: none; }
+  #plant-bar.show { display: block; }
+  #plant-bar .label { font-size: 13px; letter-spacing: .14em; margin-bottom: 6px; text-shadow: 0 1px 2px #000; }
+  #plant-bar .track { height: 10px; background: rgba(0,0,0,.6); border: 1px solid var(--line); }
+  #plant-bar .track i { display: block; height: 100%; background: var(--accent); width: 0; }
+
+  #banner { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); text-align: center; display: none; }
+  #banner.show { display: block; }
+  #banner h2 { margin: 0; font-size: 44px; letter-spacing: .06em; text-shadow: 0 2px 8px #000; }
+  #banner p { margin: 6px 0 0; font-size: 16px; color: var(--muted); text-shadow: 0 1px 4px #000; }
+
+  #feed { position: fixed; right: 32px; top: 84px; width: 300px; text-align: right; font-size: 13px; line-height: 1.7; color: var(--ink); text-shadow: 0 1px 2px #000; }
+  #feed div { opacity: .95; }
+  #feed .ally { color: #8fe3a0; }
+  #feed .enemy { color: #ff9a8a; }
+
+  #hint { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); font-size: 13px; color: var(--muted); text-shadow: 0 1px 2px #000; text-align: center; }
+
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(12, 7, 3, 0.72); }
+  .overlay[hidden] { display: none; }
+  .panel { width: min(560px, 100%); max-height: 92vh; overflow: auto; padding: 22px 26px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .panel h1 { margin: 0 0 4px; font-size: 34px; line-height: 1.1; letter-spacing: -.01em; }
+  .panel h1 .accent { color: var(--accent); }
+  .panel h2 { margin: 0 0 14px; font-size: 22px; }
+  .panel p { margin: 0 0 18px; font-size: 15px; line-height: 1.55; color: var(--muted); }
+  .panel .big { font-family: var(--font-readout); font-size: 40px; color: var(--accent); }
+  .btn { font: inherit; font-weight: 600; padding: 12px 20px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: #1a120a; cursor: pointer; }
+  .btn:hover { background: var(--ink); border-color: var(--ink); }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .keys { margin: 20px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; color: var(--muted); }
+  .keys kbd { padding: 2px 7px; border: 1px solid var(--line); border-radius: 4px; font-family: var(--font-readout); font-size: 12px; color: var(--ink); }
+
+  .shop-item { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; }
+  .shop-item .info { flex: 1; }
+  .shop-item .name { font-weight: 600; font-size: 15px; }
+  .shop-item .desc { font-size: 13px; color: var(--muted); }
+  .shop-item .price { font-family: var(--font-readout); color: #ffd97a; }
+  .shop-item.owned .price { color: #8fe3a0; }
+  #buy-money { font-family: var(--font-readout); font-size: 18px; color: #ffd97a; margin-bottom: 14px; }
+  #scope { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #scope.on { display: block; }
+  #scope::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, transparent 34%, rgba(0,0,0,.96) 35%); }
+  #scope::after { content: ''; position: absolute; left: 50%; top: 50%; width: 2px; height: 100%; background: rgba(245,233,211,.5); transform: translateX(-50%); box-shadow: 0 0 0 100vmax transparent; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" aria-hidden="true">
+  <div id="crosshair"><i></i><i></i><i></i><i></i><span class="dot"></span></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="health"><div class="label">KESEHATAN</div><div class="num" id="health-num">100</div><div class="bar"><i id="health-bar" style="width:100%"></i></div></div>
+  <div id="ammo"><span id="ammo-mag">12</span><span id="ammo-reserve">/ 36</span><div id="weapon-name">PISTOL P-9</div></div>
+  <div id="topbar"><span id="round-label">RONDE 1</span><span id="timer">1:45</span><span id="score-line">PENYERANG <b id="score-atk">0</b> : <b id="score-def">0</b> BERTAHAN</span></div>
+  <div id="money">$800</div>
+  <div id="kills">KILL 0 &nbsp;•&nbsp; MATI 0</div>
+  <div id="bomb-status">BOM: BELUM DITANAM</div>
+  <div id="plant-bar"><div class="label" id="plant-label">MENANAM BOM… TAHAN E</div><div class="track"><i id="plant-fill"></i></div></div>
+  <div id="banner"><h2 id="banner-title"></h2><p id="banner-sub"></p></div>
+  <div id="feed"></div>
+  <div id="hint"></div>
+  <div id="scope"></div>
+</div>
+
+<div id="overlay-start" class="overlay">
+  <section class="panel" role="dialog" aria-modal="true">
+    <h1>BENTENG <span class="accent">KALISUSU</span></h1>
+    <p>Tactical FPS ronde demi ronde di Benteng Kalisusu, Ereke, Buton Utara. Pimpin tim penyerang: tanam bom di Gudang Mesiu (Site A) atau Gerbang Benteng (Site B), atau habisi semua bertahan. Uang tiap ronde dibelikan senjata.</p>
+    <button class="btn" id="play" type="button">MULAI PERTANDINGAN</button>
+    <ul class="keys">
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Bergerak</li>
+      <li><kbd>Mouse</kbd> Membidik</li>
+      <li><kbd>Klik kiri</kbd> Tembak</li>
+      <li><kbd>R</kbd> Reload &nbsp; <kbd>Ctrl</kbd> Jongkok</li>
+      <li><kbd>E</kbd> Tanam bom (tahan)</li>
+      <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Ganti senjata</li>
+      <li><kbd>G</kbd> Lempar granat asap</li>
+      <li><kbd>Klik kanan</kbd> Scope (SR-2)</li>
+      <li><kbd>B</kbd> Menu beli &nbsp; <kbd>M</kbd> Mute</li>
+    </ul>
+  </section>
+</div>
+
+<div id="overlay-buy" class="overlay" hidden>
+  <section class="panel" role="dialog" aria-modal="true">
+    <h2>Menu Beli — Antar Ronde</h2>
+    <div id="buy-money">$800</div>
+    <div id="shop"></div>
+    <button class="btn" id="buy-done" type="button">MULAI RONDE BERIKUTNYA</button>
+    <p style="margin-top:8px">Menang ronde +$300 &nbsp;•&nbsp; Kalah +$150 &nbsp;•&nbsp; Kill +$100 &nbsp;•&nbsp; Tanam bom +$200</p>
+  </section>
+</div>
+
+<div id="overlay-end" class="overlay" hidden>
+  <section class="panel" role="dialog" aria-modal="true">
+    <h1 id="end-title">MENANG</h1>
+    <p id="end-sub"></p>
+    <div class="big" id="end-score">5 – 2</div>
+    <p id="end-stats"></p>
+    <button class="btn" id="again" type="button">MAIN LAGI</button>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
